@@ -1,0 +1,40 @@
+# Ambiente local
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+
+# Logs
+logs/*.log
+*.log
+
+# Banco de dados
+*.sql
+*.db
+*.sqlite
+
+# Docker
+data/
+backups/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporários
+*.tmp
+*.temp
+temp/
+tmp/

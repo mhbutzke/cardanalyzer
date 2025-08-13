@@ -1,0 +1,64 @@
+# =====================================================
+# Crontab - CardAnalyzer
+# Agendamento de tarefas automatizadas
+# =====================================================
+
+# =====================================================
+# VARIÁVEIS DE AMBIENTE
+# =====================================================
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PYTHONPATH=/app
+
+# =====================================================
+# LOGS
+# =====================================================
+# Todos os logs vão para /app/logs/
+# Formato: YYYY-MM-DD_HHMMSS.log
+
+# =====================================================
+# ATUALIZAÇÕES DIÁRIAS
+# =====================================================
+
+# 02:00 - Refresh das Materialized Views (concurrent)
+0 2 * * * cd /app && python app/refresh_materialized_views.py --all --concurrent >> /app/logs/mv_refresh_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# 03:00 - Atualização diária de dados (últimos 3 dias)
+0 3 * * * cd /app && python app/manage.py update-daily --days-back 3 >> /app/logs/daily_update_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# =====================================================
+# ATUALIZAÇÕES SEMANAIS
+# =====================================================
+
+# Domingo 04:00 - Refresh completo das Materialized Views
+0 4 * * 0 cd /app && python app/refresh_materialized_views.py --all >> /app/logs/weekly_mv_refresh_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# Domingo 05:00 - Enriquecimento completo da timeline
+0 5 * * 0 cd /app && python app/enrich_timeline_simple.py >> /app/logs/weekly_timeline_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# =====================================================
+# MONITORAMENTO E MANUTENÇÃO
+# =====================================================
+
+# A cada 6 horas - Verificação inteligente de refresh
+0 */6 * * * cd /app && python app/auto_refresh_mv.py --smart >> /app/logs/smart_refresh_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# 01:00 - Limpeza de logs antigos (manter apenas 30 dias)
+0 1 * * * find /app/logs -name "*.log" -mtime +30 -delete >> /app/logs/cleanup_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# =====================================================
+# BACKUP E SEGURANÇA
+# =====================================================
+
+# 06:00 - Backup do banco de dados
+0 6 * * * pg_dump -h postgres -U card -d carddb | gzip > /app/logs/backup_$(date +\%Y-\%m-\%d_\%H\%M\%S).sql.gz >> /app/logs/backup_$(date +\%Y-\%m-\%d_\%H\%M\%S).log 2>&1
+
+# =====================================================
+# NOTAS IMPORTANTES
+# =====================================================
+# - Todos os horários são em UTC (Docker)
+# - Logs são salvos com timestamp único
+# - Scripts são executados no diretório /app
+# - Banco de dados: postgres:5432
+# - Usuário: card, Senha: card, DB: carddb
+

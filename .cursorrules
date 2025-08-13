@@ -1,0 +1,23 @@
+# CardAnalyzer — Regras (pt-BR)
+- Responder em pt-BR, objetivo e em tópicos.
+- Stack: Python 3.11, Postgres.
+- Env: `.env` (SPORTMONKS_API_KEY, API_BASE_URL, DB_DSN, TZ).
+- API Sportmonks v3:
+  - Janela: /fixtures/between/{start}/{end} (≤100 dias por chamada).
+  - Paginação: per_page=200, page=1..N até pagination.has_more=false.
+  - Incremental: /fixtures/latest → /fixtures/multi/{ids<=50}.
+  - Includes padrão:
+    participants:id,name,meta.location;referees;periods;
+    events:id,minute,minute_extra,period_id,type_id,participant_id,player_id,related_player_id,sort_order,rescinded;
+    statistics.type
+  - Filtros padrão:
+    eventTypes:14,15,16,17,19,20,21,fixtureStatisticTypes:34,52,56
+- IDs de interesse:
+  - Gols: 14 GOAL, 15 OWNGOAL, 16 PENALTY, 17 MISSED_PENALTY.
+  - Cartões: 19 YELLOWCARD, 21 YELLOWREDCARD, 20 REDCARD.
+  - Stats (time no jogo): 34 CORNERS, 52 GOALS, 56 FOULS.
+- Regras de negócio:
+  - Timeline: ordenar por sort_order.
+  - Cartões rescinded=true não contam.
+  - red_total = red_direct + second_yellow (não somar second_yellow em yellow).
+

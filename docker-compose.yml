@@ -1,0 +1,137 @@
+# =====================================================
+# Docker Compose - CardAnalyzer
+# Stack completo: Postgres + App + Cron
+# =====================================================
+
+version: '3.8'
+
+services:
+  # =====================================================
+  # POSTGRES - Banco de dados principal
+  # =====================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: cardanalyzer_postgres
+    environment:
+      POSTGRES_DB: carddb
+      POSTGRES_USER: card
+      POSTGRES_PASSWORD: card
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      TZ: America/Sao_Paulo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    ports:
+      - "5432:5432"
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U card -d carddb"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cardanalyzer_network
+    restart: unless-stopped
+
+  # =====================================================
+  # APP - Aplicação principal
+  # =====================================================
+  app:
+    build: .
+    container_name: cardanalyzer_app
+    environment:
+      - DB_DSN=postgresql://card:card@postgres:5432/carddb
+      - API_BASE_URL=https://api.sportmonks.com/v3/football
+      - SPORTMONKS_API_KEY=${SPORTMONKS_API_KEY}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ./app:/app/app
+      - ./sql:/app/sql
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cardanalyzer_network
+    restart: unless-stopped
+    profiles:
+      - app
+
+  # =====================================================
+  # CRON - Agendamento de tarefas
+  # =====================================================
+  cron:
+    build: .
+    container_name: cardanalyzer_cron
+    environment:
+      - DB_DSN=postgresql://card:card@postgres:5432/carddb
+      - API_BASE_URL=https://api.sportmonks.com/v3/football
+      - SPORTMONKS_API_KEY=${SPORTMONKS_API_KEY}
+      - TZ=America/Sao_Paulo
+    volumes:
+      - ./app:/app/app
+      - ./sql:/app/sql
+      - ./logs:/app/logs
+      - ./.env:/app/.env
+      - ./docker/cron/crontab:/etc/cron.d/cardanalyzer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        chmod 0644 /etc/cron.d/cardanalyzer &&
+        crontab /etc/cron.d/cardanalyzer &&
+        cron -f
+      "
+    networks:
+      - cardanalyzer_network
+    restart: unless-stopped
+    profiles:
+      - cron
+
+  # =====================================================
+  # ADMINER - Interface web para PostgreSQL (opcional)
+  # =====================================================
+  adminer:
+    image: adminer:latest
+    container_name: cardanalyzer_adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha-dark
+    depends_on:
+      - postgres
+    networks:
+      - cardanalyzer_network
+    restart: unless-stopped
+    profiles:
+      - adminer
+
+# =====================================================
+# VOLUMES
+# =====================================================
+volumes:
+  postgres_data:
+    driver: local
+
+# =====================================================
+# NETWORKS
+# =====================================================
+networks:
+  cardanalyzer_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =====================================================
+# COMPOSE PROFILES
+# =====================================================
+# Para usar apenas o banco: docker-compose up postgres
+# Para usar app + banco: docker-compose --profile app up
+# Para usar cron + banco: docker-compose --profile cron up
+# Para usar tudo: docker-compose --profile app --profile cron --profile adminer up
